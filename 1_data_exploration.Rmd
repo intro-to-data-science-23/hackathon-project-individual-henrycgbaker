@@ -1,0 +1,304 @@
+---
+title: "Data exploration for 'survey' dataset"
+author: "Henry Baker"
+date: "2023-12-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(dplyr)
+library(haven)
+library(plotly)
+library(patchwork)
+library(tidyr)
+library(fuzzyjoin)
+```
+
+## Loading & initial look at data
+
+```{r survey data folder}
+
+setwd("/Users/henrybaker/Library/Mobile Documents/com~apple~CloudDocs/Documents/GitHub/IDS'23/hackathon-project-individual-henrycgbaker")
+
+survey_data <- readRDS("survey/meof_usa_survey_df.RDS")
+
+#str(survey_data)
+#summary(survey_data)
+
+survey_data_variables <- names(survey_data)
+
+```
+
+```{r tracking data folder}
+#tracking
+tracking_data <- readRDS("tracking/meof_usa_web_df.RDS")
+#str(tracking_data)
+#summary(tracking_data)
+
+tracking_data_variables <- names(tracking_data)
+
+# time zones
+time_zones <- readRDS("tracking/time_zones.RDS")
+#str(time_zones)
+#summary(time_zones)
+```
+
+## Attempted to do a data mining attempt here (failed)
+this was meant to look at the covariance between all columns to see if any initial patterns & correlations emerged, but the data isn't properly numeric and most of it drops out.
+```{r covariance between columns}
+# doesn't work - too many omitted columns:
+
+selected_data <- select(survey_data, -c(1:7))
+# Identify numeric and convertible columns
+numeric_columns <- sapply(selected_data, function(x) is.numeric(x) || is.factor(x))
+
+# Convert  to numeric
+survey_numeric <- data.frame(lapply(selected_data[, numeric_columns, drop = FALSE], function(x) {
+  if (is.factor(x)) {
+    as.numeric(as.character(x))
+  } else {
+    as.numeric(x)
+  }
+}))
+
+#  compute covariance
+vc_survey <- cov(survey_numeric)
+
+```
+
+## basic transfomrations to make data more useable moving forwards
+Continue to add to this as make basic changes - group them altogether here so can keep track
+```{r basic repub demographics}
+
+#create new party variable for ease of use
+survey_data$party <- ifelse(survey_data$pid3 == 1, "democrat", "republican")
+
+# create a  republican subset
+repub_subset <- survey_data |>
+  filter(party == "republican") |>
+  group_by(personid)
+
+n_repub <- nrow(repub_subset)
+
+# create a democratic subset
+demo_subset <- survey_data |>
+  filter(party == "democrat") |>
+  group_by(personid)
+
+n_demo <- nrow(demo_subset)
+# NB signifanctly less democrats !
+```
+
+## Basic demographic distributions
+
+### Republicans
+```{r}
+
+par(mfrow = c(3, 3))
+
+# Gender
+gender_plot <- ggplot(repub_subset, aes(x = factor(gender))) +
+  geom_bar() +
+  labs(title = "Gender Distribution among Republican Respondents", x = "Gender", y = "Count")
+
+# Birth Year
+birthyr_plot <- ggplot(repub_subset, aes(x = birthyr)) +
+  geom_histogram(binwidth = 10) +
+  labs(title = "Birth Year Distribution among Republican Respondents", x = "Birth Year", y = "Count")
+
+# Race
+race_plot <- ggplot(repub_subset, aes(x = factor(race))) +
+  geom_bar() +
+  labs(title = "Race Distribution among Republican Respondents", x = "Race", y = "Count")
+
+# Education
+educ_plot <- ggplot(repub_subset, aes(x = factor(educ))) +
+  geom_bar() +
+  labs(title = "Education Level Distribution among Republican Respondents", x = "Education Level", y = "Count")
+
+# Family Income
+faminc_plot <- ggplot(repub_subset, aes(x = factor(faminc_new))) +
+  geom_bar() +
+  labs(title = "Family Income Distribution among Republican Respondents", x = "Income Level", y = "Count")
+
+# Religious Pew
+regligpew_plot <- ggplot(repub_subset, aes(x = factor(religpew))) +
+  geom_bar() +
+  labs(title = "Religious Affiliation Distribution among Republican Respondents", x = "Religious Affiliation", y = "Count")
+
+# Combine the plots in a 3x2 layout
+n_label_plot_repub <- ggplot() +
+  annotate("text", x = 0, y = 0, label = paste("Total n =", n_repub), size = 5) +
+  theme_void()
+
+combined_plot <- gender_plot / birthyr_plot / race_plot / educ_plot / faminc_plot / regligpew_plot / n_label_plot_repub + 
+                 plot_layout(ncol = 2, nrow = 4)
+
+combined_plot
+
+```
+
+For religious affiliation: 
+1 = prot
+2 = catholic
+11 = nothing in particular
+
+### Democrats
+
+```{r basic democrat demographics}
+
+par(mfrow = c(3, 2))
+
+# Gender
+gender_plot <- ggplot(demo_subset, aes(x = factor(gender))) +
+  geom_bar() +
+  labs(title = "Gender Distribution among Democratic Respondents", x = "Gender", y = "Count")
+
+# Birth Year
+birthyr_plot <- ggplot(demo_subset, aes(x = birthyr)) +
+  geom_histogram(binwidth = 10) +
+  labs(title = "Birth Year Distribution among Democratic Respondents", x = "Birth Year", y = "Count")
+
+# Race
+race_plot <- ggplot(demo_subset, aes(x = factor(race))) +
+  geom_bar() +
+  labs(title = "Race Distribution among Democratic Respondents", x = "Race", y = "Count")
+
+# Education
+educ_plot <- ggplot(demo_subset, aes(x = factor(educ))) +
+  geom_bar() +
+  labs(title = "Education Level Distribution among Democratic Respondents", x = "Education Level", y = "Count")
+
+# Family Income
+faminc_plot <- ggplot(demo_subset, aes(x = factor(faminc_new))) +
+  geom_bar() +
+  labs(title = "Family Income Distribution among Democratic Respondents", x = "Income Level", y = "Count")
+
+# Religious Pew
+regligpew_plot <- ggplot(demo_subset, aes(x = factor(religpew))) +
+  geom_bar() +
+  labs(title = "Religious Affiliation Distribution among Republican Respondents", x = "Religious Affiliation", y = "Count")
+
+# Combine the plots in a 3x2 layout
+n_label_plot_demo <- ggplot() +
+  annotate("text", x = 0, y = 0, label = paste("Total n =", n_demo), size = 5) +
+  theme_void()
+
+combined_plot <- gender_plot / birthyr_plot / race_plot / educ_plot / faminc_plot / regligpew_plot / n_label_plot_demo + 
+                 plot_layout(ncol = 2, nrow = 4)
+
+combined_plot
+
+```
+NB: many fewer democrats in the sample
+
+## System trust by party
+
+```{r system trust}
+
+ggplot(survey_data, aes(x = system_fair, fill = party)) +
+  geom_histogram(position = "dodge", binwidth = 1) +
+  scale_fill_manual(values = c("democrat" = "blue", "republican" = "red")) +
+  labs(title = "Distribution of System Fairness Perception by Party",
+       x = "System Fairness Rating",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+1 = strongly disagree
+5 = strongly agree
+
+this is interesting - more antisystem sentiment amongst democrats
+Also high variance - definitely an interesting variable to unpack
+- what predictors for system_fair in survey data
+- would be very interesting to see how tracking data maps on to this
+- changes over time? recorded in all 7 waves: look how system trust changes for specific subsets within parties over time?
+- does it change with changes in tracking data website visits and news consumption
+- is it associated with non legacy media consumption? (age interaction term?) 
+- diff in diff model: get baseline of similar units, then see how consumption of certain media in intervention group changes trust in system compared to control units?
+- do late night users have less trust?
+
+## Platform statistics by party
+
+```{r platform stats}
+
+# function to create plot for a social media platform
+platform_plot_fn <- function(data, platform, party_col = "party") {
+  ggplot(data, aes_string(x = party_col, fill = party_col)) +
+    geom_bar(data = subset(data, get(platform) == 1)) +
+    labs(title = paste("Users with", platform, "Accounts by Party"),
+         x = "Party",
+         y = "Count") +
+    scale_fill_manual(values = c("democrat" = "blue", "republican" = "red")) +
+    theme_minimal()
+}
+  
+# iterate
+twitter_plot <- platform_plot_fn(survey_data, "accounts_twitter")
+facebook_plot <- platform_plot_fn(survey_data, "accounts_facebook")
+instagram_plot <- platform_plot_fn(survey_data, "accounts_instagram")
+linkedin_plot <- platform_plot_fn(survey_data, "accounts_linkedin")
+
+combined_plot <- twitter_plot / facebook_plot / instagram_plot / linkedin_plot +
+                 plot_layout(ncol = 2)
+
+combined_plot
+
+```
+
+but this is because there are more republicans
+need to work out as proportion
+
+```{r proportional platform stats}
+
+# function to calc props for each platform
+calculate_proportions <- function(data, platform) {
+  data |>
+    group_by(party) |>
+    summarise(Proportion = mean(get(platform) == 1, na.rm = TRUE), .groups = 'drop')
+}
+
+# calc propsfor each platform
+twitter_proportions <- calculate_proportions(survey_data, "accounts_twitter")
+facebook_proportions <- calculate_proportions(survey_data, "accounts_facebook")
+instagram_proportions <- calculate_proportions(survey_data, "accounts_instagram")
+linkedin_proportions <- calculate_proportions(survey_data, "accounts_linkedin")
+
+twitter_proportions
+facebook_proportions
+instagram_proportions
+linkedin_proportions
+
+# into one data frame
+combined_proportions <- bind_rows(
+  mutate(twitter_proportions, Platform = "Twitter"),
+  mutate(facebook_proportions, Platform = "Facebook"),
+  mutate(instagram_proportions, Platform = "Instagram"),
+  mutate(linkedin_proportions, Platform = "LinkedIn")
+)
+
+# long format for plots
+long_proportions <- pivot_longer(combined_proportions, 
+                                 cols = -c(party, Platform), 
+                                 names_to = "SocialMedia", 
+                                 values_to = "Proportion")
+
+ggplot(long_proportions, aes(x = party, y = Proportion, fill = party)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  facet_wrap(~ Platform) +
+  labs(title = "Proportion of Each Party's Members Using Social Media Platforms",
+       x = "Party",
+       y = "Proportion") +
+  scale_fill_manual(values = c("democrat" = "blue", "republican" = "red")) +
+  theme_minimal()
+
+```
+
+
+## to do:
+- once have more specific set of variables, drop unnecessary then join the two data sets together in advance - there's only one way (join by personid) and we will def have to do this
+
