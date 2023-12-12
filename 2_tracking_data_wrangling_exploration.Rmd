@@ -83,7 +83,7 @@ top_web_plot_1 <- ggplot(top_websites, aes(x = reorder(domain, visit_count), y =
        x = "Website",
        y = "Number of Visits") +
   theme_minimal()
-
+top_web_plot_1
 
 # List of survey-related, ad-related, other non-insightful domains to exclude
 survey_related_domains <- c("adservice.google.com", "nav.smartscreen.microsoft.com", "vid-io.springserve.net", "syn.entertainow.com", "surveyjunkie.com", "samplicio.us", "acds.prod.vidible.tv", "time.rmprod.zone", "pf.entertainow.com", "track1.aniview.com", "mypoints.com", "collect.sbkcenter.com", "s.cpx.to", "t.nav.smartscreen.microsoft.com", "t.myvisualiq.net", "otf.msn.com", "sync.graph.bluecava.com", "yougovus.wakoopa.com", "yougovus2.wakoopa.com", "thrtle.com", "fc.yahoo.com", "hlsrv.vidible.tv", "tag.cogocast.net", "inboxdollars.com")  # check these 
@@ -103,8 +103,38 @@ top_web_plot_2 <- ggplot(top_websites, aes(x = reorder(domain, visit_count), y =
        x = "Website",
        y = "Number of Visits") +
   theme_minimal()
+top_web_plot_2
 
 ```
+
+## Most Time Spent
+
+```{r}
+
+# Calculate total time spent on each website in hours
+website_time_spent <- tracking_data |>
+  group_by(domain) |>
+  summarise(total_duration_hours = sum(duration) / 3600, .groups = 'drop') |>
+  arrange(desc(total_duration_hours))
+
+# Select the top 20 websites by total time spent in hours
+top_websites_time_spent <- head(website_time_spent, 20)
+
+# Create a histogram for time spent in hours
+top_web_time_spent_plot <- ggplot(top_websites_time_spent, aes(x = reorder(domain, total_duration_hours), y = total_duration_hours)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Top 20 Websites with the Most Total Time Spent (in hours)",
+       x = "Website",
+       y = "Total Time Spent (in hours)") +
+  theme_minimal()
+
+top_web_time_spent_plot
+
+```
+
+- need to remove ads & tracker websites
+- if can add by wave --> can see change over time (do facet plot)
 
 ## Social media
 ```{r social media}
@@ -136,10 +166,12 @@ social_media_plot <- ggplot(social_media_visits, aes(x = reorder(platform, visit
        x = "Social Media Platform",
        y = "Number of Visits") +
   theme_minimal()
-
+social_media_plot
 ```
 
 # News sites
+
+I tried fiddling with everything here, I don't understand why it appears as a single block....
 ```{r news sites}
 
 # regex for major and minor U.S. news sites
@@ -163,11 +195,11 @@ news_sites_patterns <- c(
 )
 
 # rilter tracking_data for visits to news sites
-news_site_visits <- tracking_data %>%
-  filter(str_detect(domain, paste(news_sites_patterns, collapse = "|"))) %>%
-  mutate(news_site = str_extract(domain, paste(names(news_sites_patterns), collapse = "|"))) %>%
-  group_by(news_site) %>%
-  summarise(visit_count = n(), .groups = 'drop') %>%
+news_site_visits <- tracking_data |>
+  filter(str_detect(domain, paste(news_sites_patterns, collapse = "|"))) |>
+  mutate(news_site = str_extract(domain, paste(names(news_sites_patterns), collapse = "|"))) |>
+  group_by(news_site) |>
+  summarise(visit_count = n(), .groups = 'drop') |>
   arrange(desc(visit_count))
 
 # histogram
@@ -178,7 +210,7 @@ news_plot <- ggplot(news_site_visits, aes(x = reorder(news_site, visit_count), y
        x = "News Site",
        y = "Number of Visits") +
   theme_minimal()
-
+news_plot
 ```
 
 ```{r legacy vs new media}
@@ -318,5 +350,6 @@ category_plot <- ggplot(category_visits, aes(x = category_type, y = visit_count_
        x = "Category",
        y = "Number of Visits") +
   theme_minimal()
+category_plot
 
 ```
